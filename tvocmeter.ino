@@ -11,11 +11,7 @@
 
 #define CCS811_ADDR 0x5A
 
-#if 0
 #define MQTT_HOST   "mosquitto.space.revspace.nl"
-#else
-#define MQTT_HOST   "test.mosquitto.org"
-#endif
 #define MQTT_PORT   1883
 #define MQTT_TOPIC  "revspace/sensors/tvoc"
 
