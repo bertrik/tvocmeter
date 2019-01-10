@@ -10,13 +10,13 @@
 #define PIN_CCS811_SDA  D2
 #define PIN_CCS811_WAK  D3
 #define PIN_CCS811_GND  D8
-#define PIN_NEOPIXEL    D4
+#define PIN_NEOPIXEL    D5
 
 #define CCS811_ADDR 0x5A
 
-#define MQTT_HOST   "test.mosquitto.org"
+#define MQTT_HOST   "stofradar.nl"
 #define MQTT_PORT   1883
-#define MQTT_TOPIC  "revspace/sensors/tvoc"
+#define MQTT_TOPIC  "bertrik/ccs811/tvoc"
 
 #define LOG_PERIOD_SEC  10000
 
@@ -113,8 +113,10 @@ static void show_on_led(uint16_t tvoc)
 
 void loop(void)
 {
-    static uint16_t tvoc = 0;
     static unsigned long ms_prev = 0;
+
+    static uint32_t meas_total = 0;
+    static int meas_num = 0;
 
     // get time
     unsigned long ms = millis();
@@ -122,7 +124,9 @@ void loop(void)
     // read if available
     if (ccs811.dataAvailable()) {
         ccs811.readAlgorithmResults();
-        tvoc = ccs811.getTVOC();
+        uint16_t tvoc = ccs811.getTVOC();
+        meas_total += tvoc;
+        meas_num++;
 
         // update LEDs
         show_on_led(tvoc);
@@ -132,11 +136,19 @@ void loop(void)
     if ((ms - ms_prev) > LOG_PERIOD_SEC) {
         ms_prev = ms;
 
-        // send over MQTT
-        char message[16];
-        snprintf(message, sizeof(message), "%d ppb", tvoc);
-        mqtt_send(MQTT_TOPIC, message);
+        // calculate average
+        if (meas_num > 0) {
+            uint16_t tvoc = (meas_total + (meas_num / 2)) / meas_num; 
+            meas_num = 0;
+            meas_total = 0;
+
+            // send over MQTT
+            char message[16];
+            snprintf(message, sizeof(message), "%u", tvoc);
+            mqtt_send(MQTT_TOPIC, message);
+        }
     }
+
     // keep MQTT alive
     mqttClient.loop();
 }
