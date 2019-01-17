@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <EEPROM.h>
 
 #include <Wire.h>
 #include <SparkFunCCS811.h>
@@ -19,8 +20,15 @@
 #define MQTT_TOPIC  "bertrik/ccs811/tvoc"
 
 #define LOG_PERIOD_SEC  10000
+#define BASELINE_PERIOD_MS	60000L
 
 #define NUM_LEDS 8
+
+#define NVDATA_MAGIC 0x1337
+struct {
+    uint16_t baseline;
+    uint32_t magic;
+} nvdata;
 
 typedef struct {
     int level;
@@ -52,12 +60,17 @@ void setup(void)
     Serial.begin(115200);
     Serial.println("\nTVOC meter");
 
+    EEPROM.begin(sizeof(nvdata));
+
     FastLED.addLeds<NEOPIXEL, PIN_NEOPIXEL>(leds, NUM_LEDS); 
 
     // get ESP id
     sprintf(esp_id, "%08X", ESP.getChipId());
     Serial.print("ESP ID: ");
     Serial.println(esp_id);
+
+    // get CCS811 baseline
+    EEPROM.get(0, nvdata);
 
     // setup CCS811
     pinMode(PIN_CCS811_GND, OUTPUT);
@@ -69,6 +82,14 @@ void setup(void)
     if (returnCode != CCS811Core::SENSOR_SUCCESS) {
         Serial.println(".begin() returned with an error.");
         while (1);              //Hang if there was a problem.
+    }
+
+    // restore base line
+    EEPROM.get(0, nvdata);
+    if (nvdata.magic == NVDATA_MAGIC) {
+        Serial.print("Restoring base line value ");
+        Serial.println(nvdata.baseline, HEX);
+        ccs811.setBaseline(nvdata.baseline);
     }
 
     // connect to wifi
@@ -114,6 +135,7 @@ static void show_on_led(uint16_t tvoc)
 void loop(void)
 {
     static unsigned long ms_prev = 0;
+    static unsigned long ms_baseline = 0;
 
     static uint32_t meas_total = 0;
     static int meas_num = 0;
@@ -130,6 +152,17 @@ void loop(void)
 
         // update LEDs
         show_on_led(tvoc);
+    }
+
+    // save baseline every BASELINE_PERIOD_MS
+    if ((ms - ms_baseline) > BASELINE_PERIOD_MS) {
+        ms_baseline = ms;
+        nvdata.baseline = ccs811.getBaseline();
+        nvdata.magic = NVDATA_MAGIC;
+
+        Serial.print("Saving baseline value ");
+        Serial.println(nvdata.baseline, HEX);
+        EEPROM.put(0, nvdata);
     }
 
     // report every LOG_PERIOD
