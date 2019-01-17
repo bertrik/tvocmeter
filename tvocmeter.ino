@@ -20,7 +20,7 @@
 #define MQTT_TOPIC  "bertrik/ccs811/tvoc"
 
 #define LOG_PERIOD_MS       10000L
-#define BASELINE_PERIOD_MS	60000L
+#define BASELINE_PERIOD_MS	3600000L
 
 #define NUM_LEDS 8
 
