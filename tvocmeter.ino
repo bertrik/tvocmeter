@@ -163,6 +163,7 @@ void loop(void)
         Serial.print("Saving baseline value ");
         Serial.println(nvdata.baseline, HEX);
         EEPROM.put(0, nvdata);
+        EEPROM.commit();
     }
 
     // report every LOG_PERIOD
