@@ -19,7 +19,7 @@
 #define MQTT_PORT   1883
 #define MQTT_TOPIC  "bertrik/ccs811/tvoc"
 
-#define LOG_PERIOD_SEC  10000
+#define LOG_PERIOD_MS       10000L
 #define BASELINE_PERIOD_MS	60000L
 
 #define NUM_LEDS 8
@@ -166,8 +166,8 @@ void loop(void)
         EEPROM.commit();
     }
 
-    // report every LOG_PERIOD
-    if ((ms - ms_prev) > LOG_PERIOD_SEC) {
+    // report every LOG_PERIOD_MS
+    if ((ms - ms_prev) > LOG_PERIOD_MS) {
         ms_prev = ms;
 
         // calculate average
