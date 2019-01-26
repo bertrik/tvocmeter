@@ -3,6 +3,7 @@
 
 #include <Wire.h>
 #include <SparkFunCCS811.h>
+#include <SparkFunBME280.h>
 #include <WiFiManager.h>
 #include <PubSubClient.h>
 #include "FastLED.h"
@@ -19,8 +20,9 @@
 #define MQTT_PORT   1883
 #define MQTT_TOPIC  "bertrik/ccs811/tvoc"
 
-#define LOG_PERIOD_MS       10000L
-#define BASELINE_PERIOD_MS	3600000L
+#define BASELINE_PERIOD_SEC 3600
+#define ENV_PERIOD_SEC      10
+#define LOG_PERIOD_SEC      10
 
 #define NUM_LEDS 8
 
@@ -48,6 +50,7 @@ static const level_t levels[] = {
 };
 
 static CCS811 ccs811(CCS811_ADDR);
+static BME280 bme280;
 static char esp_id[16];
 
 static WiFiManager wifiManager;
@@ -55,36 +58,44 @@ static WiFiClient wifiClient;
 static PubSubClient mqttClient(wifiClient);
 static CRGB leds[NUM_LEDS];
 
+static char text[256];
+
 void setup(void)
 {
     Serial.begin(115200);
     Serial.println("\nTVOC meter");
-
-    EEPROM.begin(sizeof(nvdata));
-
-    FastLED.addLeds<NEOPIXEL, PIN_NEOPIXEL>(leds, NUM_LEDS); 
 
     // get ESP id
     sprintf(esp_id, "%08X", ESP.getChipId());
     Serial.print("ESP ID: ");
     Serial.println(esp_id);
 
-    // get CCS811 baseline
-    EEPROM.get(0, nvdata);
+    // LED init
+    FastLED.addLeds<NEOPIXEL, PIN_NEOPIXEL>(leds, NUM_LEDS);
+
+    // setup I2C
+    Wire.begin(PIN_CCS811_SDA, PIN_CCS811_SCL);
+
+    // setup BME280
+    bme280.setI2CAddress(0x76);
+    if (!bme280.beginI2C()) {
+        Serial.println("bme280.begin() returned with an error.");
+        while (1);
+    }
 
     // setup CCS811
     pinMode(PIN_CCS811_GND, OUTPUT);
     digitalWrite(PIN_CCS811_GND, 0);
     pinMode(PIN_CCS811_WAK, OUTPUT);
     digitalWrite(PIN_CCS811_WAK, 0);
-    Wire.begin(PIN_CCS811_SDA, PIN_CCS811_SCL);
     CCS811Core::status returnCode = ccs811.begin();
     if (returnCode != CCS811Core::SENSOR_SUCCESS) {
-        Serial.println(".begin() returned with an error.");
-        while (1);              //Hang if there was a problem.
+        Serial.println("ccs811.begin() returned with an error.");
+        while (1);
     }
 
-    // restore base line
+    // restore CCS811 baseline
+    EEPROM.begin(sizeof(nvdata));
     EEPROM.get(0, nvdata);
     if (nvdata.magic == NVDATA_MAGIC) {
         Serial.print("Restoring base line value ");
@@ -134,16 +145,14 @@ static void show_on_led(uint16_t tvoc)
 
 void loop(void)
 {
-    static unsigned long ms_prev = 0;
-    static unsigned long ms_baseline = 0;
+    static unsigned long second_log = 0;
+    static unsigned long second_baseline = 0;
+    static unsigned long second_env = 0;
 
     static uint32_t meas_total = 0;
     static int meas_num = 0;
 
-    // get time
-    unsigned long ms = millis();
-
-    // read if available
+    // read CCS811 if available
     if (ccs811.dataAvailable()) {
         ccs811.readAlgorithmResults();
         uint16_t tvoc = ccs811.getTVOC();
@@ -154,9 +163,10 @@ void loop(void)
         show_on_led(tvoc);
     }
 
-    // save baseline every BASELINE_PERIOD_MS
-    if ((ms - ms_baseline) > BASELINE_PERIOD_MS) {
-        ms_baseline = ms;
+    // save CCS811 baseline every BASELINE_PERIOD_SEC
+    unsigned long second = millis() / 1000;
+    if ((second - second_baseline) > BASELINE_PERIOD_SEC) {
+        second_baseline = second;
         nvdata.baseline = ccs811.getBaseline();
         nvdata.magic = NVDATA_MAGIC;
 
@@ -166,9 +176,25 @@ void loop(void)
         EEPROM.commit();
     }
 
-    // report every LOG_PERIOD_MS
-    if ((ms - ms_prev) > LOG_PERIOD_MS) {
-        ms_prev = ms;
+    // read temperature every ENV_PERIOD_SEC
+    if ((second - second_env) > ENV_PERIOD_SEC) {
+        second_env = second;
+
+        // disable CCS811 WAKE and read environment data
+        digitalWrite(PIN_CCS811_WAK, 1);
+        float tempC = bme280.readTempC();
+        float humidity = bme280.readFloatHumidity();
+
+        // enable CCS811 WAKE and write environment data
+        digitalWrite(PIN_CCS811_WAK, 0);
+        snprintf(text, sizeof(text), "Applying T/RH compensation: T=%.2f, RH=%.2f\n", tempC, humidity);
+        Serial.print(text);
+        ccs811.setEnvironmentalData(humidity, tempC);
+    }
+
+    // log over MQTT every LOG_PERIOD_SEC
+    if ((second - second_log) > LOG_PERIOD_SEC) {
+        second_log = second;
 
         // calculate average
         if (meas_num > 0) {
