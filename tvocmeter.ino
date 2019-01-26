@@ -60,15 +60,28 @@ static CRGB leds[NUM_LEDS];
 
 static char text[256];
 
+// printf-like output to serial port
+static void print(const char *fmt, ...)
+{
+    // format it
+    char buf[256];
+    va_list args;
+    va_start (args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end (args);
+
+    // send it to serial
+    Serial.write(buf);
+}
+
 void setup(void)
 {
     Serial.begin(115200);
-    Serial.println("\nTVOC meter");
+    print("\nTVOC meter\n");
 
     // get ESP id
     sprintf(esp_id, "%08X", ESP.getChipId());
-    Serial.print("ESP ID: ");
-    Serial.println(esp_id);
+    print("ESP ID: %s\n", esp_id);
 
     // LED init
     FastLED.addLeds<NEOPIXEL, PIN_NEOPIXEL>(leds, NUM_LEDS);
@@ -79,7 +92,7 @@ void setup(void)
     // setup BME280
     bme280.setI2CAddress(0x76);
     if (!bme280.beginI2C()) {
-        Serial.println("bme280.begin() returned with an error.");
+        print("bme280.begin() returned with an error.\n");
         while (1);
     }
 
@@ -90,7 +103,7 @@ void setup(void)
     digitalWrite(PIN_CCS811_WAK, 0);
     CCS811Core::status returnCode = ccs811.begin();
     if (returnCode != CCS811Core::SENSOR_SUCCESS) {
-        Serial.println("ccs811.begin() returned with an error.");
+        print("ccs811.begin() returned with an error.\n");
         while (1);
     }
 
@@ -98,13 +111,12 @@ void setup(void)
     EEPROM.begin(sizeof(nvdata));
     EEPROM.get(0, nvdata);
     if (nvdata.magic == NVDATA_MAGIC) {
-        Serial.print("Restoring base line value ");
-        Serial.println(nvdata.baseline, HEX);
+        print("Restoring base line value %04X\n", nvdata.baseline);
         ccs811.setBaseline(nvdata.baseline);
     }
 
     // connect to wifi
-    Serial.println("Starting WIFI manager ...");
+    print("Starting WIFI manager ...\n");
     wifiManager.autoConnect("ESP-TVOC");
 }
 
@@ -115,13 +127,10 @@ static void mqtt_send(const char *topic, const char *value)
         mqttClient.connect(esp_id);
     }
     if (mqttClient.connected()) {
-        Serial.print("Publishing ");
-        Serial.print(value);
-        Serial.print(" to ");
-        Serial.print(topic);
-        Serial.print("...");
+        print("Publishing %s to %s ...", value, topic);
         int result = mqttClient.publish(topic, value, true);
-        Serial.println(result ? "OK" : "FAIL");
+        print(result ? "OK" : "FAIL");
+        print("\n");
     }
 }
 
@@ -132,15 +141,14 @@ static void show_on_led(uint16_t tvoc)
         const level_t *l = &levels[idx];
         if (tvoc >= l->level) {
             leds[idx] = CRGB(l->color);
-            Serial.print("#");
+            print("#");
         } else {
             leds[idx] = CRGB::Black; 
-            Serial.print(".");
+            print(".");
         }
     }
-    Serial.print(" ");
-    Serial.println(tvoc);
-	FastLED.show(); 
+    print(" %d\n", tvoc);
+    FastLED.show(); 
 }
 
 void loop(void)
@@ -170,8 +178,7 @@ void loop(void)
         nvdata.baseline = ccs811.getBaseline();
         nvdata.magic = NVDATA_MAGIC;
 
-        Serial.print("Saving baseline value ");
-        Serial.println(nvdata.baseline, HEX);
+        print("Saving baseline value %04X", nvdata.baseline);
         EEPROM.put(0, nvdata);
         EEPROM.commit();
     }
@@ -187,8 +194,7 @@ void loop(void)
 
         // enable CCS811 WAKE and write environment data
         digitalWrite(PIN_CCS811_WAK, 0);
-        snprintf(text, sizeof(text), "Applying T/RH compensation: T=%.2f, RH=%.2f\n", tempC, humidity);
-        Serial.print(text);
+        print("Applying T/RH compensation: T=%.2f, RH=%.2f\n", tempC, humidity);
         ccs811.setEnvironmentalData(humidity, tempC);
     }
 
