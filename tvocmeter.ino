@@ -18,7 +18,7 @@
 
 #define MQTT_HOST   "stofradar.nl"
 #define MQTT_PORT   1883
-#define MQTT_TOPIC  "bertrik/ccs811/tvoc"
+#define MQTT_TOPIC  "bertrik/%s%s"      // esp_id/subtopic
 
 #define BASELINE_PERIOD_SEC 3600
 #define ENV_PERIOD_SEC      10
@@ -158,6 +158,9 @@ void loop(void)
     static uint32_t meas_total = 0;
     static int meas_num = 0;
 
+    char topic[128];
+    char message[16];
+
     // read CCS811 if available
     if (ccs811.dataAvailable()) {
         ccs811.readAlgorithmResults();
@@ -181,7 +184,7 @@ void loop(void)
         EEPROM.commit();
     }
 
-    // read temperature every ENV_PERIOD_SEC
+    // update enivironment data every ENV_PERIOD_SEC
     if ((second - second_env) > ENV_PERIOD_SEC) {
         second_env = second;
 
@@ -194,9 +197,18 @@ void loop(void)
         digitalWrite(PIN_CCS811_WAK, 0);
         print("Applying T/RH compensation: T=%.2f, RH=%.2f\n", tempC, humidity);
         ccs811.setEnvironmentalData(humidity, tempC);
+    
+        // log to MQTT
+        snprintf(topic, sizeof(topic), MQTT_TOPIC, esp_id, "/bme280/temperature");
+        snprintf(message, sizeof(message), "%.2f", tempC);
+        mqtt_send(topic, message);
+
+        snprintf(topic, sizeof(topic), MQTT_TOPIC, esp_id, "/bme280/humidity");
+        snprintf(message, sizeof(message), "%.2f", humidity);
+        mqtt_send(topic, message);
     }
 
-    // log over MQTT every LOG_PERIOD_SEC
+    // log TVOC over MQTT every LOG_PERIOD_SEC
     if ((second - second_log) > LOG_PERIOD_SEC) {
         second_log = second;
 
@@ -207,9 +219,9 @@ void loop(void)
             meas_total = 0;
 
             // send over MQTT
-            char message[16];
+            snprintf(topic, sizeof(topic), MQTT_TOPIC, esp_id, "/ccs811/tvoc");
             snprintf(message, sizeof(message), "%u", tvoc);
-            mqtt_send(MQTT_TOPIC, message);
+            mqtt_send(topic, message);
         }
     }
 
