@@ -58,8 +58,6 @@ static WiFiClient wifiClient;
 static PubSubClient mqttClient(wifiClient);
 static CRGB leds[NUM_LEDS];
 
-static char text[256];
-
 // printf-like output to serial port
 static void print(const char *fmt, ...)
 {
