@@ -176,7 +176,7 @@ void loop(void)
         nvdata.baseline = ccs811.getBaseline();
         nvdata.magic = NVDATA_MAGIC;
 
-        print("Saving baseline value %04X", nvdata.baseline);
+        print("Saving baseline value %04X\n", nvdata.baseline);
         EEPROM.put(0, nvdata);
         EEPROM.commit();
     }
