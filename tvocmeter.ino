@@ -37,6 +37,11 @@ typedef struct {
     uint32_t color;
 } level_t;
 
+typedef struct {
+    uint32_t total;
+    uint16_t count;
+} averager_t;
+
 static const level_t levels[] = {
     {25, 0x00FF00},
     {50, 0x00FF00},
@@ -155,8 +160,8 @@ void loop(void)
     static unsigned long second_baseline = 0;
     static unsigned long second_env = 0;
 
-    static uint32_t meas_total = 0;
-    static int meas_num = 0;
+    static averager_t tvoc_avg = {0, 0};
+    static averager_t eco2_avg = {0, 0};
 
     char topic[128];
     char message[16];
@@ -165,8 +170,8 @@ void loop(void)
     if (ccs811.dataAvailable()) {
         ccs811.readAlgorithmResults();
         uint16_t tvoc = ccs811.getTVOC();
-        meas_total += tvoc;
-        meas_num++;
+        tvoc_avg.total += tvoc;
+        tvoc_avg.count++;
 
         // update LEDs
         show_on_led(tvoc);
@@ -213,10 +218,10 @@ void loop(void)
         second_log = second;
 
         // calculate average
-        if (meas_num > 0) {
-            uint16_t tvoc = (meas_total + (meas_num / 2)) / meas_num; 
-            meas_num = 0;
-            meas_total = 0;
+        if (tvoc_avg.count > 0) {
+            uint16_t tvoc = (tvoc_avg.total + (tvoc_avg.count / 2)) / tvoc_avg.count; 
+            tvoc_avg.total = 0;
+            tvoc_avg.count = 0;
 
             // send over MQTT
             snprintf(topic, sizeof(topic), MQTT_TOPIC, esp_id, "/ccs811/tvoc");
