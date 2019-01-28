@@ -172,6 +172,9 @@ void loop(void)
         uint16_t tvoc = ccs811.getTVOC();
         tvoc_avg.total += tvoc;
         tvoc_avg.count++;
+        uint16_t eco2 = ccs811.getCO2();
+        eco2_avg.total += eco2;
+        eco2_avg.count++;
 
         // update LEDs
         show_on_led(tvoc);
@@ -213,11 +216,11 @@ void loop(void)
         mqtt_send(topic, message);
     }
 
-    // log TVOC over MQTT every LOG_PERIOD_SEC
+    // log TVOC and eCO2 over MQTT every LOG_PERIOD_SEC
     if ((second - second_log) > LOG_PERIOD_SEC) {
         second_log = second;
 
-        // calculate average
+        // calculate average TVOC
         if (tvoc_avg.count > 0) {
             uint16_t tvoc = (tvoc_avg.total + (tvoc_avg.count / 2)) / tvoc_avg.count; 
             tvoc_avg.total = 0;
@@ -226,6 +229,18 @@ void loop(void)
             // send over MQTT
             snprintf(topic, sizeof(topic), MQTT_TOPIC, esp_id, "/ccs811/tvoc");
             snprintf(message, sizeof(message), "%u", tvoc);
+            mqtt_send(topic, message);
+        }
+
+        // calculate average eCO2
+        if (eco2_avg.count > 0) {
+            uint16_t eco2 = (eco2_avg.total + (eco2_avg.count / 2)) / eco2_avg.count; 
+            eco2_avg.total = 0;
+            eco2_avg.count = 0;
+
+            // send over MQTT
+            snprintf(topic, sizeof(topic), MQTT_TOPIC, esp_id, "/ccs811/eco2");
+            snprintf(message, sizeof(message), "%u", eco2);
             mqtt_send(topic, message);
         }
     }
