@@ -8,8 +8,8 @@
 #include <PubSubClient.h>
 #include "FastLED.h"
 
-#define PIN_LED_VCC     D3
-#define PIN_LED_DATA    D4
+#define PIN_LED_VCC     D2
+#define PIN_LED_DATA    D3
 
 #define PIN_CCS811_WAK  D5
 #define PIN_CCS811_SDA  D6
@@ -81,6 +81,13 @@ static void print(const char *fmt, ...)
 
 void setup(void)
 {
+    // setup pins
+    pinMode(PIN_CCS811_GND, OUTPUT);
+    digitalWrite(PIN_CCS811_GND, 0);
+    pinMode(PIN_CCS811_WAK, OUTPUT);
+    digitalWrite(PIN_CCS811_WAK, 1);
+
+    // greeting
     Serial.begin(115200);
     print("\nTVOC meter\n");
 
@@ -89,8 +96,6 @@ void setup(void)
     print("ESP ID: %s\n", esp_id);
 
     // setup I2C
-    pinMode(PIN_CCS811_WAK, OUTPUT);
-    digitalWrite(PIN_CCS811_WAK, 1);
     Wire.begin(PIN_CCS811_SDA, PIN_CCS811_SCL);
 
     // setup BME280
@@ -101,8 +106,6 @@ void setup(void)
     }
 
     // setup CCS811
-    pinMode(PIN_CCS811_GND, OUTPUT);
-    digitalWrite(PIN_CCS811_GND, 0);
     digitalWrite(PIN_CCS811_WAK, 0);
     CCS811Core::status returnCode = ccs811.begin();
     if (returnCode != CCS811Core::SENSOR_SUCCESS) {
