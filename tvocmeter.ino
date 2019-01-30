@@ -8,11 +8,13 @@
 #include <PubSubClient.h>
 #include "FastLED.h"
 
-#define PIN_CCS811_SCL  D1
-#define PIN_CCS811_SDA  D2
-#define PIN_CCS811_WAK  D3
+#define PIN_LED_VCC     D3
+#define PIN_LED_DATA    D4
+
+#define PIN_CCS811_WAK  D5
+#define PIN_CCS811_SDA  D6
+#define PIN_CCS811_SCL  D7
 #define PIN_CCS811_GND  D8
-#define PIN_NEOPIXEL    D5
 
 #define CCS811_ADDR 0x5A
 
@@ -34,7 +36,7 @@ struct {
 
 typedef struct {
     int level;
-    uint32_t color;
+    CRGB rgb;
 } level_t;
 
 typedef struct {
@@ -43,14 +45,14 @@ typedef struct {
 } averager_t;
 
 static const level_t levels[] = {
-    {62, 0x00FF00},
-    {125, 0x00FF00},
-    {250, 0x00FF00},
-    {500, 0x00FF00},
-    {1000, 0xFFFF00},
-    {2000, 0xFFFF00},
-    {4000, 0xFF0000},
-    {8000, 0xFF0000},
+    {62,    CRGB::Green},
+    {125,   CRGB::Green},
+    {250,   CRGB::Green},
+    {500,   CRGB::Green},
+    {1000,  CRGB::Yellow},
+    {2000,  CRGB::Yellow},
+    {4000,  CRGB::Red},
+    {8000,  CRGB::Red},
     {-1, 0}
 };
 
@@ -86,10 +88,9 @@ void setup(void)
     sprintf(esp_id, "%08X", ESP.getChipId());
     print("ESP ID: %s\n", esp_id);
 
-    // LED init
-    FastLED.addLeds<NEOPIXEL, PIN_NEOPIXEL>(leds, NUM_LEDS);
-
     // setup I2C
+    pinMode(PIN_CCS811_WAK, OUTPUT);
+    digitalWrite(PIN_CCS811_WAK, 1);
     Wire.begin(PIN_CCS811_SDA, PIN_CCS811_SCL);
 
     // setup BME280
@@ -102,7 +103,6 @@ void setup(void)
     // setup CCS811
     pinMode(PIN_CCS811_GND, OUTPUT);
     digitalWrite(PIN_CCS811_GND, 0);
-    pinMode(PIN_CCS811_WAK, OUTPUT);
     digitalWrite(PIN_CCS811_WAK, 0);
     CCS811Core::status returnCode = ccs811.begin();
     if (returnCode != CCS811Core::SENSOR_SUCCESS) {
@@ -117,6 +117,13 @@ void setup(void)
         print("Restoring base line value %04X\n", nvdata.baseline);
         ccs811.setBaseline(nvdata.baseline);
     }
+
+    // LED init
+    pinMode(PIN_LED_VCC, OUTPUT);
+    digitalWrite(PIN_LED_VCC, 1);
+    FastLED.addLeds<WS2812, PIN_LED_DATA, RGB>(leds, NUM_LEDS);
+    FastLED.setBrightness(5);
+    FastLED.show();
 
     // connect to wifi
     print("Starting WIFI manager ...\n");
@@ -143,7 +150,7 @@ static void show_on_led(uint16_t tvoc)
     for (idx = 0; levels[idx].level > 0; idx++) {
         const level_t *l = &levels[idx];
         if (tvoc >= l->level) {
-            leds[idx] = CRGB(l->color);
+            leds[idx] = l->rgb;
             print("#");
         } else {
             leds[idx] = CRGB::Black; 
