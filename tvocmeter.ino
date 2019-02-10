@@ -130,21 +130,24 @@ void setup(void)
 
     // connect to wifi
     print("Starting WIFI manager ...\n");
+    wifiManager.setConfigPortalTimeout(120);
     wifiManager.autoConnect("ESP-TVOC");
 }
 
-static void mqtt_send(const char *topic, const char *value)
+static bool mqtt_send(const char *topic, const char *value, bool retained)
 {
+    bool result = false;
     if (!mqttClient.connected()) {
         mqttClient.setServer(MQTT_HOST, MQTT_PORT);
-        mqttClient.connect(esp_id);
+        result = mqttClient.connect(esp_id, topic, 0, retained, "offline");
     }
     if (mqttClient.connected()) {
         print("Publishing %s to %s ...", value, topic);
-        int result = mqttClient.publish(topic, value, true);
+        result = mqttClient.publish(topic, value, retained);
         print(result ? "OK" : "FAIL");
         print("\n");
     }
+    return result;
 }
 
 static void show_on_led(uint16_t tvoc)
@@ -219,11 +222,11 @@ void loop(void)
         // log to MQTT
         snprintf(topic, sizeof(topic), MQTT_TOPIC, esp_id, "/bme280/temperature");
         snprintf(message, sizeof(message), "%.2f", tempC);
-        mqtt_send(topic, message);
+        mqtt_send(topic, message, true);
 
         snprintf(topic, sizeof(topic), MQTT_TOPIC, esp_id, "/bme280/humidity");
         snprintf(message, sizeof(message), "%.2f", humidity);
-        mqtt_send(topic, message);
+        mqtt_send(topic, message, true);
     }
 
     // log TVOC and eCO2 over MQTT every LOG_PERIOD_SEC
@@ -239,7 +242,7 @@ void loop(void)
             // send over MQTT
             snprintf(topic, sizeof(topic), MQTT_TOPIC, esp_id, "/ccs811/tvoc");
             snprintf(message, sizeof(message), "%u", tvoc);
-            mqtt_send(topic, message);
+            mqtt_send(topic, message, true);
         }
 
         // calculate average eCO2
@@ -251,11 +254,17 @@ void loop(void)
             // send over MQTT
             snprintf(topic, sizeof(topic), MQTT_TOPIC, esp_id, "/ccs811/eco2");
             snprintf(message, sizeof(message), "%u", eco2);
-            mqtt_send(topic, message);
+            mqtt_send(topic, message, true);
         }
     }
 
     // keep MQTT alive
     mqttClient.loop();
+
+    // verify network connection and reboot on failure
+    if (WiFi.status() != WL_CONNECTED) {
+        Serial.println("Restarting ESP...");
+        ESP.restart();
+    }
 }
 
