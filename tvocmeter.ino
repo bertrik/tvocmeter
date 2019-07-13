@@ -68,7 +68,7 @@ void setup(void)
     digitalWrite(PIN_CCS811_WAK, 1);
 
     // get ESP id
-    sprintf(esp_id, "%06X", ESP.getChipId());
+    sprintf(esp_id, "%06x", ESP.getChipId());
     print("ESP ID: %s\n", esp_id);
 
     // setup I2C
