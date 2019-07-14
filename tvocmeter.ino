@@ -179,11 +179,11 @@ void loop(void)
 
         // log to MQTT
         snprintf(topic, sizeof(topic), MQTT_TOPIC, esp_id, "bme280/temperature");
-        snprintf(message, sizeof(message), "%.2f", tempC);
+        snprintf(message, sizeof(message), "%.2f °C", tempC);
         mqtt_send(topic, message, true);
 
         snprintf(topic, sizeof(topic), MQTT_TOPIC, esp_id, "bme280/humidity");
-        snprintf(message, sizeof(message), "%.2f", humidity);
+        snprintf(message, sizeof(message), "%.2f %", humidity);
         mqtt_send(topic, message, true);
     }
 
