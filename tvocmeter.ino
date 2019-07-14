@@ -199,7 +199,7 @@ void loop(void)
 
             // send over MQTT
             snprintf(topic, sizeof(topic), MQTT_TOPIC, esp_id, "ccs811/tvoc");
-            snprintf(message, sizeof(message), "%u", tvoc);
+            snprintf(message, sizeof(message), "%u ppb", tvoc);
             mqtt_send(topic, message, true);
         }
 
@@ -211,7 +211,7 @@ void loop(void)
 
             // send over MQTT
             snprintf(topic, sizeof(topic), MQTT_TOPIC, esp_id, "ccs811/eco2");
-            snprintf(message, sizeof(message), "%u", eco2);
+            snprintf(message, sizeof(message), "%u ppm", eco2);
             mqtt_send(topic, message, true);
         }
     }
