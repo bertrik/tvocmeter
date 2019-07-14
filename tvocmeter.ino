@@ -183,7 +183,7 @@ void loop(void)
         mqtt_send(topic, message, true);
 
         snprintf(topic, sizeof(topic), MQTT_TOPIC, esp_id, "bme280/humidity");
-        snprintf(message, sizeof(message), "%.2f %", humidity);
+        snprintf(message, sizeof(message), "%.2f %%", humidity);
         mqtt_send(topic, message, true);
     }
 
