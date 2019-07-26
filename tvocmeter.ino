@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <ArduinoOTA.h>
 #include <EEPROM.h>
 
 #include <Wire.h>
@@ -62,6 +63,10 @@ void setup(void)
     // greeting
     Serial.begin(115200);
     print("\nTVOC meter\n");
+
+    ArduinoOTA.setHostname("esp-tvoc");
+    ArduinoOTA.setPassword("tvoc");
+    ArduinoOTA.begin();
 
     // setup pins
     pinMode(PIN_CCS811_WAK, OUTPUT);
@@ -218,6 +223,9 @@ void loop(void)
 
     // keep MQTT alive
     mqttClient.loop();
+
+    // handle OTA
+    ArduinoOTA.handle();
 
     // verify network connection and reboot on failure
     if (WiFi.status() != WL_CONNECTED) {
