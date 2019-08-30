@@ -169,7 +169,7 @@ void loop(void)
     }
 
     // update enivironment data every ENV_PERIOD_SEC
-    if ((second - second_env) > ENV_PERIOD_SEC) {
+    if ((second - second_env) >= ENV_PERIOD_SEC) {
         second_env = second;
 
         // disable CCS811 WAKE and read environment data
@@ -193,7 +193,7 @@ void loop(void)
     }
 
     // log TVOC and eCO2 over MQTT every LOG_PERIOD_SEC
-    if ((second - second_log) > LOG_PERIOD_SEC) {
+    if ((second - second_log) >= LOG_PERIOD_SEC) {
         second_log = second;
 
         // calculate average TVOC
