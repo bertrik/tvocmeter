@@ -90,8 +90,7 @@ void setup(void)
 
     // setup CCS811
     digitalWrite(PIN_CCS811_WAK, 0);
-    CCS811Core::status returnCode = ccs811.begin();
-    if (returnCode != CCS811Core::SENSOR_SUCCESS) {
+    if (!ccs811.begin()) {
         while (1) {
             print("ccs811.begin() returned with an error.\n");
             delay(1000);
