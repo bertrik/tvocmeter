@@ -7,6 +7,9 @@
 #include <WiFiManager.h>
 #include <PubSubClient.h>
 
+#include "cmdproc.h"
+#include "editline.h"
+
 #define PIN_CCS811_WAK  D5
 #define PIN_CCS811_SDA  D6
 #define PIN_CCS811_SCL  D7
@@ -40,6 +43,7 @@ static WiFiManager wifiManager;
 static WiFiClient wifiClient;
 static PubSubClient mqttClient(wifiClient);
 static char statustopic[128];
+static char line[120];
 
 // printf-like output to serial port
 static void print(const char *fmt, ...)
@@ -70,6 +74,9 @@ void setup(void)
     // get ESP id
     sprintf(esp_id, "%06x", ESP.getChipId());
     print("ESP ID: %s\n", esp_id);
+
+    // command line editing
+    EditInit(line, sizeof(line));
 
     // setup I2C
     Wire.begin(PIN_CCS811_SDA, PIN_CCS811_SCL);
@@ -125,6 +132,37 @@ static bool mqtt_send(const char *topic, const char *value, bool retained)
         print("\n");
     }
     return result;
+}
+
+static int do_reboot(int argc, char *argv[])
+{
+    (void)argc;
+    (void)argv;
+
+    ESP.restart();
+    return 0;
+}
+
+static void show_help(const cmd_t * cmds)
+{
+    for (const cmd_t * cmd = cmds; cmd->cmd != NULL; cmd++) {
+        printf("%10s: %s\n", cmd->name, cmd->help);
+    }
+}
+
+static int do_help(int argc, char *argv[]);
+
+const cmd_t commands[] = {
+    { "help", do_help, "Show help" },
+//    { "clear", do_clear, "Clear the EEPROM containing calibration values" },
+    { "reboot", do_reboot, "Reboot" },
+    { NULL, NULL, NULL }
+};
+
+static int do_help(int argc, char *argv[])
+{
+    show_help(commands);
+    return CMD_OK;
 }
 
 void loop(void)
@@ -213,6 +251,32 @@ void loop(void)
             snprintf(message, sizeof(message), "%u ppm", eco2);
             mqtt_send(topic, message, true);
         }
+    }
+
+    // parse command line
+    bool haveLine = false;
+    if (Serial.available()) {
+        char c;
+        haveLine = EditLine(Serial.read(), &c);
+        Serial.write(c);
+    }
+    if (haveLine) {
+        int result = cmd_process(commands, line);
+        switch (result) {
+        case CMD_OK:
+            printf("OK\n");
+            break;
+        case CMD_NO_CMD:
+            break;
+        case CMD_UNKNOWN:
+            printf("Unknown command, available commands:\n");
+            show_help(commands);
+            break;
+        default:
+            printf("%d\n", result);
+            break;
+        }
+        printf(">");
     }
 
     // keep MQTT alive
